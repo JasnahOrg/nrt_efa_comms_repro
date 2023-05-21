@@ -21,12 +21,12 @@ export LD_LIBRARY_PATH=/opt/amazon/efa/lib:$LD_LIBRARY_PATH
 - Create an SSH key on your first instance only: `ssh-keygen -t ed25519 -C "your_email@example.com"`, leave the passphrase empty.
 - `cat ~/.ssh/id_ed25519.pub` and add the SSH public key to ~/.ssh/authorized_keys on both instances so that nccom-test can ssh into both instances.
 - Verify that you can ssh from your first instance into each of your two instances via their private IPs: `ssh 172.31.58.215` and `ssh 172.31.51.0`
-- Verify that EFA comms work: `NEURON_RT_ROOT_COMM_ID=172.31.58.215:62128 nccom-test -N 2 -r 64 --minbytes 100kb --maxbytes 1mb --stepfactor 10 --datatype fp32 --check allg --hosts 172.31.58.215 172.31.51.0`
+- Verify that EFA comms work: `NEURON_RT_ROOT_COMM_ID=172.31.58.215:62128 nccom-test -N 2 -r 64 --minbytes 100kb --maxbytes 1mb --stepfactor 10 --datatype fp32 --check allr --hosts 172.31.58.215 172.31.51.0`
 ```
     size(B)    count(elems)    type    time(us)    algbw(GB/s)    busbw(GB/s)
-     102400           25600    fp32         221           0.43           0.42
-    1024000          256000    fp32         335           2.85           2.80
-Avg bus bandwidth:	1.6135GB/s
+     102400           25600    fp32         398           0.24           0.47
+    1024000          256000    fp32         469           2.03           4.00
+Avg bus bandwidth:	2.2375GB/s
 ```
 
 ### Reproduce
