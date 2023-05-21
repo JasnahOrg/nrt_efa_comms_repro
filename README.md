@@ -19,26 +19,37 @@ export LD_LIBRARY_PATH=/opt/amazon/efa/lib:$LD_LIBRARY_PATH
 - Verify that EFA comms work: `NEURON_RT_ROOT_COMM_ID=172.31.63.174:62128 nccom-test -N 2 -r 64 --minbytes 100kb --maxbytes 1mb --stepfactor 10 --datatype fp32 --check allg --hosts 172.31.63.174 172.31.56.143`
 
 ### Reproduce
-- On the first machine, run: `cargo test test_dummy_comm --features trn -- --show-output --nocapture`. You should see it hang, waiting for the other ranks to come online.
-- Now run the same command on the second machine: `cargo test test_dummy_comm --features trn -- --show-output --nocapture`. You'll see this output on both machines:
+- Open the file xla/src/lib.rs and change the line `ip_address_of_rank0: Some("172.31.63.174".to_string()),` to reflect the private IP of your rank 0 trn instance. This should be the same as the value used above for `NEURON_RT_ROOT_COMM_ID`.
+- On the first instance, run: `cargo test test_instance_0 -- --show-output --nocapture`. You should see it hang, waiting for the other rank to come online.
+- Now run this command on the second instance: `cargo test test_instance_1 -- --show-output --nocapture`. You'll see this output on both machines:
 ```
 running 1 test
-Found an exisitng compiled NEFF /tmp/run_rank_1_7680805176524177539.neff, skipping compilation
-2023-May-21 01:40:03.0080 93703:93705 [0] nccl_net_ofi_init:1415 CCOM WARN NET/OFI aws-ofi-nccl initialization failed
-2023-May-21 01:40:03.0080 93703:93705 [0] init.cc:99 CCOM WARN OFI plugin initNet() failed is EFA enabled?
-2023-May-21 01:40:15.0924 93703:93705 [0] transport.cc:36 CCOM WARN No transport found between devices 0 and 0. Possible replica group misconfiguration
-2023-May-21 01:40:15.0924 93703:93705 [0] init.cc:655 CCOM WARN Unable to run multi-instance workload.  Ofi plugin is not installed or EFA is not enabled
-2023-May-21 01:40:15.0924 93703:93705 ERROR   ENC:ncclInitGlobalComm                      failed neuronInitGlobalComm request to NCCL
-2023-May-21 01:40:15.0924 93703:93705 ERROR   ENC:enc_init_global_comm                    [nec_dev 0] failed to create global comm
-2023-May-21 01:40:15.0924 93703:93705 ERROR   NRT:nrt_load_collectives                    failed to create global communicator, global_device_id=1, global_device_count=2, ROOT_COMM_ID=172.31.63.174:62128)
-thread '<unnamed>' panicked at 'assertion failed: `(left != right)`
+Compiling NEFF /tmp/test_comm_7179921044148955493.neff...
+Running command 'neuronx-cc compile rust_hlo_run_rank_0.pb --framework XLA --target trn1 --model-type transformer --auto-cast none --output /tmp/test_comm_7179921044148955493.neff'
+Successfully executed script "neuronx-cc" "compile" "rust_hlo_run_rank_0.pb" "--framework" "XLA" "--target" "trn1" "--model-type" "transformer" "--auto-cast" "none" "--output" "/tmp/test_comm_7179921044148955493.neff"
+run_trn: Took 1.184781638s to compile the NEFF.
+Calling nrt_load_collectives with parameters:
+                neff_bytes: 0x7faaec02c6f0,
+                size: 8115,
+                start_nc: 0,
+                nc_count: 1,
+                g_device_id: 1,
+                g_device_count: 2,
+                model: 0x7faaf26cf958
+2023-May-21 14:27:33.0030 102203:102204 [0] nccl_net_ofi_init:1415 CCOM WARN NET/OFI aws-ofi-nccl initialization failed
+2023-May-21 14:27:33.0030 102203:102204 [0] init.cc:99 CCOM WARN OFI plugin initNet() failed is EFA enabled?
+2023-May-21 14:27:33.0045 102203:102204 [0] transport.cc:36 CCOM WARN No transport found between devices 0 and 0. Possible replica group misconfiguration
+2023-May-21 14:27:33.0045 102203:102204 [0] init.cc:655 CCOM WARN Unable to run multi-instance workload.  Ofi plugin is not installed or EFA is not enabled
+2023-May-21 14:27:33.0045 102203:102204 ERROR   ENC:ncclInitGlobalComm                      failed neuronInitGlobalComm request to NCCL
+2023-May-21 14:27:33.0045 102203:102204 ERROR   ENC:enc_init_global_comm                    [nec_dev 0] failed to create global comm
+2023-May-21 14:27:33.0045 102203:102204 ERROR   NRT:nrt_load_collectives                    failed to create global communicator, global_device_id=1, global_device_count=2, ROOT_COMM_ID=172.31.63.174:62128)
+thread 'tests::test_instance_1' panicked at 'assertion failed: `(left != right)`
   left: `0x0`,
- right: `0x0`', xla/src/xla_runner.rs:333:13
+ right: `0x0`', xla/src/xla_runner.rs:316:13
 note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
-thread 'xla::tests::test_dummy_comm' panicked at 'called `Result::unwrap()` on an `Err` value: Any { .. }', comm/src/xla.rs:394:27
-test xla::tests::test_dummy_comm ... FAILED
+test tests::test_instance_1 ... FAILED
 ```
-- The above commands compile to NEFF and run the graph rust_hlo_run_rank_0.pb, which does a single all reduce op with a single input. The debug representation of the .pb:
+- The above commands compile to NEFF and run the graph xla/rust_hlo_run_rank_0.pb, which does a single all reduce op with a single input. The debug representation of the .pb:
 ```
 HloModule xla_computation_ordered_wrapper, entry_computation_layout={(f32[4]{0})->(f32[4]{0})}
 

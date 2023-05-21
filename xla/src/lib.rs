@@ -21,7 +21,7 @@ mod tests {
         let proto_path = "rust_hlo_run_rank_0.pb";
 
         let comm_info = CommInitInfo {
-            ip_address_of_rank0: Some("34.222.199.149".to_string()),
+            ip_address_of_rank0: Some("172.31.63.174".to_string()),
             port_of_rank0: Some(62128),
         };
         let distributed_info = DistributedRunInfo {
