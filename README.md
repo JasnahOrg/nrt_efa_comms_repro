@@ -19,7 +19,8 @@ export LD_LIBRARY_PATH=/opt/amazon/efa/lib:$LD_LIBRARY_PATH
 - Verify that EFA comms work: `NEURON_RT_ROOT_COMM_ID=172.31.63.174:62128 nccom-test -N 2 -r 64 --minbytes 100kb --maxbytes 1mb --stepfactor 10 --datatype fp32 --check allg --hosts 172.31.63.174 172.31.56.143`
 
 ### Reproduce
-- `cargo test test_dummy_comm --features trn -- --show-output --nocapture`
+- On the first machine, run: `cargo test test_dummy_comm --features trn -- --show-output --nocapture`. You should see it hang, waiting for the other ranks to come online.
+- Now run the same command on the second machine: `cargo test test_dummy_comm --features trn -- --show-output --nocapture`. You'll see this output on both machines:
 ```
 running 1 test
 Found an exisitng compiled NEFF /tmp/run_rank_1_7680805176524177539.neff, skipping compilation
@@ -36,4 +37,20 @@ thread '<unnamed>' panicked at 'assertion failed: `(left != right)`
 note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 thread 'xla::tests::test_dummy_comm' panicked at 'called `Result::unwrap()` on an `Err` value: Any { .. }', comm/src/xla.rs:394:27
 test xla::tests::test_dummy_comm ... FAILED
+```
+- The above commands compile to NEFF and run the graph rust_hlo_run_rank_0.pb, which does a single all reduce op with a single input. The debug representation of the .pb:
+```
+HloModule xla_computation_ordered_wrapper, entry_computation_layout={(f32[4]{0})->(f32[4]{0})}
+
+region_0.6 (Arg_0.3: f32[], Arg_1.3: f32[]) -> f32[] {
+  Arg_0.3 = f32[] parameter(0)
+  Arg_1.3 = f32[] parameter(1)
+  ROOT add.5 = f32[] add(Arg_0.3, Arg_1.3)
+}
+
+ENTRY main.9 (Arg_0.1: f32[4]) -> (f32[4]) {
+  Arg_0.1 = f32[4]{0} parameter(0)
+  all-reduce.2 = f32[4]{0} all-reduce(Arg_0.1), replica_groups={}, to_apply=region_0.6
+  ROOT tuple.7 = (f32[4]{0}) tuple(all-reduce.2)
+}
 ```
