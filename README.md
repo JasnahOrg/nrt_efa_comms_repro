@@ -1,7 +1,24 @@
+### Setup
 - Setup two trn1.32xlarge instances with EFA enabled: `./start_efa_instances.sh --trn --n 2`
+- Install Rust: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+- Make rust available in the current shell: `source "$HOME/.cargo/env"`
+- Install clang
+    - `sudo apt-get update`
+    - `sudo apt-get install -y libclang-dev`
+- Make NRT findable at compile time:
+```
+export CPATH=/opt/aws/neuron/include:$CPATH
+export LIBRARY_PATH=/opt/aws/neuron/lib:$LIBRARY_PATH
+export LD_LIBRARY_PATH=/opt/aws/neuron/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/opt/amazon/efa/lib:$LD_LIBRARY_PATH
+```
+
+### Test
 - Create SSH key: `ssh-keygen -t ed25519 -C "your_email@example.com"`
 - Add the SSH public key to ~/.ssh/authorized_keys on both instances so that nccom-test can ssh into both instances.
 - Verify that EFA comms work: `NEURON_RT_ROOT_COMM_ID=172.31.63.174:62128 nccom-test -N 2 -r 64 --minbytes 100kb --maxbytes 1mb --stepfactor 10 --datatype fp32 --check allg --hosts 172.31.63.174 172.31.56.143`
+
+### Reproduce
 - `cargo test test_dummy_comm --features trn -- --show-output --nocapture`
 ```
 running 1 test
