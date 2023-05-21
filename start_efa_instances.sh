@@ -16,26 +16,17 @@ set -e
 # Someone with AWS console admin privileges can create an access key ID and secret for this:
 # Configure credentials: aws configure
 
+# SET THESE!!
+SUBNET=subnet-08c4e39e1a0efd37e
 SECURITY_GROUP=sg-07e7954d56041233f
-SUBNET=subnet-0988ca10f41f563dc
+KEYNAME=trn
+
 REGION=us-west-2
-AMI=""
-NETWORK_INTERFACES=""
 COUNT=0
-KEYNAME=""
-INSTANCE_NAME=""
 
 # Parse command line arguments
 while (( "$#" )); do
   case "$1" in
-    --trn1)
-      TYPE="trn1.32xlarge"
-      shift
-      ;;
-    --a100)
-      TYPE="p4d.24xlarge"
-      shift
-      ;;
     --n)
       if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
         COUNT=$2
@@ -52,41 +43,23 @@ while (( "$#" )); do
   esac
 done
 
-# Exit if no valid option was provided
-if [ -z "$TYPE" ]; then
-  echo "You must specify either --trn1 or --a100"
-  exit 1
-fi
-
-if [ "$TYPE" = "p4d.24xlarge" ]; then
-    # Deep Learning AMI GPU PyTorch 2.0.0 (Ubuntu 20.04) 20230519
-    AMI=ami-0fd1f764bb9261fdb
-    KEYNAME=cluster2
-    INSTANCE_NAME=cluster2
-    NETWORK_INTERFACES="NetworkCardIndex=0,DeviceIndex=0,Groups=$SECURITY_GROUP,SubnetId=$SUBNET,InterfaceType=efa \
-    NetworkCardIndex=1,DeviceIndex=1,Groups=$SECURITY_GROUP,SubnetId=$SUBNET,InterfaceType=efa \
-    NetworkCardIndex=2,DeviceIndex=1,Groups=$SECURITY_GROUP,SubnetId=$SUBNET,InterfaceType=efa \
-    NetworkCardIndex=3,DeviceIndex=1,Groups=$SECURITY_GROUP,SubnetId=$SUBNET,InterfaceType=efa"
-elif [ "$TYPE" = "trn1.32xlarge" ]; then
-    # Deep Learning AMI Neuron PyTorch 1.13 (Ubuntu 20.04) 20230517
-    AMI=ami-01257e71ecb2f431c
-    KEYNAME=trn
-    INSTANCE_NAME=_Trainium-Big
-    NETWORK_INTERFACES="NetworkCardIndex=0,DeviceIndex=0,Groups=$SECURITY_GROUP,SubnetId=$SUBNET,InterfaceType=efa \
-    NetworkCardIndex=1,DeviceIndex=1,Groups=$SECURITY_GROUP,SubnetId=$SUBNET,InterfaceType=efa \
-    NetworkCardIndex=2,DeviceIndex=1,Groups=$SECURITY_GROUP,SubnetId=$SUBNET,InterfaceType=efa \
-    NetworkCardIndex=3,DeviceIndex=1,Groups=$SECURITY_GROUP,SubnetId=$SUBNET,InterfaceType=efa \
-    NetworkCardIndex=4,DeviceIndex=1,Groups=$SECURITY_GROUP,SubnetId=$SUBNET,InterfaceType=efa \
-    NetworkCardIndex=5,DeviceIndex=1,Groups=$SECURITY_GROUP,SubnetId=$SUBNET,InterfaceType=efa \
-    NetworkCardIndex=6,DeviceIndex=1,Groups=$SECURITY_GROUP,SubnetId=$SUBNET,InterfaceType=efa \
-    NetworkCardIndex=7,DeviceIndex=1,Groups=$SECURITY_GROUP,SubnetId=$SUBNET,InterfaceType=efa"
-fi
+# Deep Learning AMI Neuron PyTorch 1.13 (Ubuntu 20.04) 20230517
+AMI=ami-01257e71ecb2f431c
+INSTANCE_NAME=_Trainium-Big
+NETWORK_INTERFACES="NetworkCardIndex=0,DeviceIndex=0,Groups=$SECURITY_GROUP,SubnetId=$SUBNET,InterfaceType=efa \
+NetworkCardIndex=1,DeviceIndex=1,Groups=$SECURITY_GROUP,SubnetId=$SUBNET,InterfaceType=efa \
+NetworkCardIndex=2,DeviceIndex=1,Groups=$SECURITY_GROUP,SubnetId=$SUBNET,InterfaceType=efa \
+NetworkCardIndex=3,DeviceIndex=1,Groups=$SECURITY_GROUP,SubnetId=$SUBNET,InterfaceType=efa \
+NetworkCardIndex=4,DeviceIndex=1,Groups=$SECURITY_GROUP,SubnetId=$SUBNET,InterfaceType=efa \
+NetworkCardIndex=5,DeviceIndex=1,Groups=$SECURITY_GROUP,SubnetId=$SUBNET,InterfaceType=efa \
+NetworkCardIndex=6,DeviceIndex=1,Groups=$SECURITY_GROUP,SubnetId=$SUBNET,InterfaceType=efa \
+NetworkCardIndex=7,DeviceIndex=1,Groups=$SECURITY_GROUP,SubnetId=$SUBNET,InterfaceType=efa"
 
 command="aws ec2 --region $REGION run-instances \
 --tag-specifications \"ResourceType=instance,Tags=[{Key=Name,Value=$INSTANCE_NAME}]\" \
 --count $COUNT \
 --image-id $AMI \
---instance-type $TYPE \
+--instance-type "trn1.32xlarge" \
 --key-name $KEYNAME \
 --network-interfaces $NETWORK_INTERFACES"
 
@@ -104,6 +77,7 @@ echo "Got created instance IDs: $instance_ids"
 
 # Loop through each instance ID
 public_ips=""
+private_ips=""
 for instance_id in $instance_ids; do
   echo "Waiting for instance $instance_id to be running..."
   aws ec2 wait instance-running --instance-ids $instance_id --region $REGION
@@ -146,6 +120,13 @@ for instance_id in $instance_ids; do
   echo "Associating Elastic IP with network interface $interface_id..."
   aws ec2 associate-address --allocation-id $eip_id --network-interface-id $interface_id --region $REGION
   echo "Associated Elastic IP with network interface."
+
+  echo "Getting the private IP of network interface $interface_id..."
+  interface_info=$(aws ec2 describe-network-interfaces --network-interface-ids $interface_id --region $REGION)
+  private_ip=$(echo $interface_info | jq -r '.NetworkInterfaces[0].PrivateIpAddress')
+  echo "Private IP of network interface: $private_ip"
+  private_ips+="${private_ip} "
 done
 
 echo "You can now 'ssh -i $KEYNAME.pem ubuntu@' to $public_ips and check that there are 8 EFA devices with 'lspci -tv' and 'fi_info -p efa -t FI_EP_RDM'"
+echo "Private IPs to pass to neuron comms commands: $private_ips"

@@ -1,25 +1,37 @@
 ### Setup
-- Setup two trn1.32xlarge instances with EFA enabled: `./start_efa_instances.sh --trn --n 2`
-- Install Rust: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+- Open start_efa_instances.sh and set the values `KEYNAME`, `SUBNET`, and `SECURITY_GROUP`
+- Create two trn1.32xlarge instances with EFA enabled: `./start_efa_instances.sh --trn1 --n 2`
+- SSH into each of the two instances and set them up:
+- Install Rust: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`. Choose Default installation.
 - Make rust available in the current shell: `source "$HOME/.cargo/env"`
-- Install clang
+- Install clang, which is used to generate the Rust to C NRT lib FFI
     - `sudo apt-get update`
     - `sudo apt-get install -y libclang-dev`
-- Make NRT findable at compile time:
+- Install neuron compiler: `pip3 install neuronx-cc`
+- Make NRT findable at compile time, add these to ~/.bashrc:
 ```
 export CPATH=/opt/aws/neuron/include:$CPATH
 export LIBRARY_PATH=/opt/aws/neuron/lib:$LIBRARY_PATH
 export LD_LIBRARY_PATH=/opt/aws/neuron/lib:$LD_LIBRARY_PATH
 export LD_LIBRARY_PATH=/opt/amazon/efa/lib:$LD_LIBRARY_PATH
 ```
+- Close your shell and re-connect for `neuronx-cc` to become available.
 
-### Test
-- Create SSH key: `ssh-keygen -t ed25519 -C "your_email@example.com"`
-- Add the SSH public key to ~/.ssh/authorized_keys on both instances so that nccom-test can ssh into both instances.
-- Verify that EFA comms work: `NEURON_RT_ROOT_COMM_ID=172.31.63.174:62128 nccom-test -N 2 -r 64 --minbytes 100kb --maxbytes 1mb --stepfactor 10 --datatype fp32 --check allg --hosts 172.31.63.174 172.31.56.143`
+### Baseline Test
+- Create SSH key on your first instance only: `ssh-keygen -t ed25519 -C "your_email@example.com"`, leave the passphrase empty.
+- `cat ~/.ssh/id_ed25519.pub` and add the SSH public key to ~/.ssh/authorized_keys on both instances so that nccom-test can ssh into both instances.
+- Verify that you can ssh into each of your two instances via their private IPs: `ssh 172.31.58.215` and `ssh 172.31.51.0`
+- Verify that EFA comms work: `NEURON_RT_ROOT_COMM_ID=172.31.58.215:62128 nccom-test -N 2 -r 64 --minbytes 100kb --maxbytes 1mb --stepfactor 10 --datatype fp32 --check allg --hosts 172.31.58.215 172.31.51.0`
+```
+    size(B)    count(elems)    type    time(us)    algbw(GB/s)    busbw(GB/s)
+     102400           25600    fp32         221           0.43           0.42
+    1024000          256000    fp32         335           2.85           2.80
+Avg bus bandwidth:	1.6135GB/s
+```
 
 ### Reproduce
-- Open the file xla/src/lib.rs and change the line `ip_address_of_rank0: Some("172.31.63.174".to_string()),` to reflect the private IP of your rank 0 trn instance. This should be the same as the value used above for `NEURON_RT_ROOT_COMM_ID`.
+- Clone this repo onto each instance: `git clone https://github.com/JasnahOrg/nrt_efa_comms_repro.git`
+- Open the file xla/src/lib.rs and change the line `ip_address_of_rank0: Some("172.31.58.215".to_string()),` to reflect the private IP of your rank 0 trn instance. This should be the same as the value used above for `NEURON_RT_ROOT_COMM_ID`.
 - On the first instance, run: `cargo test test_instance_0 -- --show-output --nocapture`. You should see it hang, waiting for the other rank to come online.
 - Now run this command on the second instance: `cargo test test_instance_1 -- --show-output --nocapture`. You'll see this output on both machines:
 ```
