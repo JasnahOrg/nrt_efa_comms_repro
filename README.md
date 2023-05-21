@@ -15,12 +15,12 @@ export LIBRARY_PATH=/opt/aws/neuron/lib:$LIBRARY_PATH
 export LD_LIBRARY_PATH=/opt/aws/neuron/lib:$LD_LIBRARY_PATH
 export LD_LIBRARY_PATH=/opt/amazon/efa/lib:$LD_LIBRARY_PATH
 ```
-- Close your shell and re-connect for `neuronx-cc` to become available.
+- Close your shell and re-connect for `neuronx-cc` to become available: `which neuronx-cc`.
 
 ### Baseline Test
-- Create SSH key on your first instance only: `ssh-keygen -t ed25519 -C "your_email@example.com"`, leave the passphrase empty.
+- Create an SSH key on your first instance only: `ssh-keygen -t ed25519 -C "your_email@example.com"`, leave the passphrase empty.
 - `cat ~/.ssh/id_ed25519.pub` and add the SSH public key to ~/.ssh/authorized_keys on both instances so that nccom-test can ssh into both instances.
-- Verify that you can ssh into each of your two instances via their private IPs: `ssh 172.31.58.215` and `ssh 172.31.51.0`
+- Verify that you can ssh from your first instance into each of your two instances via their private IPs: `ssh 172.31.58.215` and `ssh 172.31.51.0`
 - Verify that EFA comms work: `NEURON_RT_ROOT_COMM_ID=172.31.58.215:62128 nccom-test -N 2 -r 64 --minbytes 100kb --maxbytes 1mb --stepfactor 10 --datatype fp32 --check allg --hosts 172.31.58.215 172.31.51.0`
 ```
     size(B)    count(elems)    type    time(us)    algbw(GB/s)    busbw(GB/s)
@@ -32,8 +32,8 @@ Avg bus bandwidth:	1.6135GB/s
 ### Reproduce
 - Clone this repo onto each instance: `git clone https://github.com/JasnahOrg/nrt_efa_comms_repro.git`
 - Open the file xla/src/lib.rs and change the line `ip_address_of_rank0: Some("172.31.58.215".to_string()),` to reflect the private IP of your rank 0 trn instance. This should be the same as the value used above for `NEURON_RT_ROOT_COMM_ID`.
-- On the first instance, run: `cargo test test_instance_0 -- --show-output --nocapture`. You should see it hang, waiting for the other rank to come online.
-- Now run this command on the second instance: `cargo test test_instance_1 -- --show-output --nocapture`. You'll see this output on both machines:
+- On the first instance, run: `cargo test test_instance_0 -- --show-output --nocapture`. After build and the test starts with `running 1 test`, you should see it hang, waiting for the other rank to come online.
+- Now run this on the second instance: `cargo test test_instance_1 -- --show-output --nocapture`. You'll see this output on both machines:
 ```
 running 1 test
 Compiling NEFF /tmp/test_comm_7179921044148955493.neff...
@@ -61,6 +61,7 @@ thread 'tests::test_instance_1' panicked at 'assertion failed: `(left != right)`
 note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 test tests::test_instance_1 ... FAILED
 ```
+- The only difference between the tests on instance 0 and instance 1 are the global rank assigned to the instance's device.
 - The above commands compile to NEFF and run the graph xla/rust_hlo_run_rank_0.pb, which does a single all reduce op with a single input. The debug representation of the .pb:
 ```
 HloModule xla_computation_ordered_wrapper, entry_computation_layout={(f32[4]{0})->(f32[4]{0})}
