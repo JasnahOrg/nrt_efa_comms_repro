@@ -1,0 +1,21 @@
+[package]
+name = "xla"
+version = "0.0.1"
+edition = "2021"
+
+[dependencies]
+prost = "0.11"
+# For XLA Graph Builder Unique ID on GraphMetadata type
+uuid = { version = "1", features = [ "v4", "fast-rng", "macro-diagnostics" ] }
+serde_json.workspace = true
+serde = { version = "1.0", default-features = false, features = ["derive", "rc"] }
+
+[build-dependencies]
+prost-build = "0.11"
+bindgen.workspace = true
+
+[dev-dependencies]
+regex = "1.7.3"
+lazy_static = "1.4"
+rand.workspace = true
+serial_test = "*"
