@@ -1,5 +1,6 @@
 - Setup two trn1.32xlarge instances with EFA enabled: `./start_efa_instances.sh --trn --n 2`
-- Setup SSH key and add the public key to ~/.ssh/known_hosts on both machines
+- Create SSH key: `ssh-keygen -t ed25519 -C "your_email@example.com"`
+- Add the SSH public key to ~/.ssh/authorized_keys on both instances so that nccom-test can ssh into both instances.
 - Verify that EFA comms work: `NEURON_RT_ROOT_COMM_ID=172.31.63.174:62128 nccom-test -N 2 -r 64 --minbytes 100kb --maxbytes 1mb --stepfactor 10 --datatype fp32 --check allg --hosts 172.31.63.174 172.31.56.143`
 - `cargo test test_dummy_comm --features trn -- --show-output --nocapture`
 ```
